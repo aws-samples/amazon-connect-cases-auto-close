@@ -1,0 +1,272 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: amazon-connect-cases-auto-close
+
+Parameters:
+  SolutionSourceBucket:
+    Type: String
+    Description: S3 Bucket Source 
+  CasesDomainId:
+    Type: String
+    Description: Cases Domain Id
+  CasesAutoCloseDays:
+    Type: String
+    Description: Auto Close Case after X Days
+
+#######################
+# Globals
+#######################
+Globals:
+  Function:
+    Runtime: nodejs16.x
+    Architectures:
+      - x86_64
+    MemorySize: 128
+    Timeout: 900
+    Environment:
+      Variables:
+        CasesDomainId: !Ref CasesDomainId
+        QueueUrl: !GetAtt EventSQSQueue.QueueUrl
+        CasesTable: !Ref CasesTable
+        CasesAutoCloseDays: !Ref CasesAutoCloseDays
+
+#######################
+# Resources
+#######################
+Resources:
+#######################
+# ROLE
+#######################
+  lambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName : !Sub '${AWS::StackName}-${AWS::AccountId}-CasesLambdaRole'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: logs
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 'arn:aws:logs:*:*:*'
+        - PolicyName: sqs
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'sqs:ReceiveMessage'
+                  - 'sqs:DeleteMessage'
+                  - 'sqs:GetQueueAttributes'
+                Resource: 
+                  - !GetAtt EventSQSQueue.Arn
+        - PolicyName: dynamodb
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:PutItem'
+                  - 'dynamodb:UpdateItem'
+                  - 'dynamodb:Scan'
+                  - 'dynamodb:Query'
+                Resource: 
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CasesTable}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CasesTable}/*'
+        - PolicyName: cases
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'cases:UpdateCase'
+                Resource: 
+                  - !Sub 'arn:aws:cases:${AWS::Region}:${AWS::AccountId}:domain/${CasesDomainId}'
+                  - !Sub 'arn:aws:cases:${AWS::Region}:${AWS::AccountId}:domain/${CasesDomainId}/*'
+
+#######################
+# LAMBDA , Event Functions
+#######################
+  CaseEventFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-${AWS::AccountId}-CaseEventFunction'
+      Description: CaseEventFunction
+      Handler: index.handler
+      Role: !GetAtt lambdaRole.Arn
+      Timeout: 30
+      CodeUri: 
+        Bucket: !Ref SolutionSourceBucket
+        Key: amazon-connect-cases-auto-close.zip
+      Events:
+        MySQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt EventSQSQueue.Arn
+            BatchSize: 1
+
+#######################
+# EVENT Rule
+#######################
+  EventsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      State: ENABLED
+      EventPattern:
+        source:
+          - aws.cases
+      Targets:
+      - 
+        Arn: 
+          Fn::GetAtt: 
+            - EventSQSQueue
+            - Arn
+        Id: EventCasesSQSTarget
+      EventBusName: default
+  PermissionForSQSToInvokeLambda: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: !Ref "CaseEventFunction"
+      Action: "lambda:InvokeFunction"
+      Principal: "sqs.amazonaws.com"
+      SourceAccount: !Ref 'AWS::AccountId'
+      SourceArn: 
+        Fn::GetAtt: 
+          - "EventSQSQueue"
+          - "Arn"
+  EventSQSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName : !Sub '${AWS::StackName}-${AWS::AccountId}-EventSQSQueueCases'
+  EventSQSQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action: sqs:SendMessage
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Resource: !GetAtt EventSQSQueue.Arn
+        Version: "2012-10-17"
+      Queues:
+        - Ref: EventSQSQueue
+
+#######################
+# Cases Configuration Setup 
+#######################
+  CasesSetupLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName : !Sub '${AWS::StackName}-${AWS::AccountId}-CasesSetupLambdaRole'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: logs
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 'arn:aws:logs:*:*:*'
+        - PolicyName: cases
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'cases:PutCaseEventConfiguration'
+                Resource: 
+                  - !Sub 'arn:aws:cases:${AWS::Region}:${AWS::AccountId}:domain/${CasesDomainId}*'
+  CasesLambdaTriggerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-${AWS::AccountId}-CasesLambdaTriggerFunction'
+      Role: !GetAtt CasesSetupLambdaRole.Arn
+      Handler: configuration/index.handler
+      Runtime: nodejs16.x
+      Code: 
+        S3Bucket: !Ref SolutionSourceBucket
+        S3Key: amazon-connect-cases-auto-close.zip
+      Environment:
+        Variables:
+          CasesDomainId: !Ref CasesDomainId
+  CasesSetupLambdaTrigger:
+    Type: 'Custom::CasesSetupLambdaTrigger'
+    Properties:
+      ServiceToken: !GetAtt CasesLambdaTriggerFunction.Arn
+      RequestToken: ${ClientRequestToken}
+      CasesDomainId : !Ref CasesDomainId
+
+#######################
+# Batch Job
+#######################
+  CaseAutoCloseBatchEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: execute every X days
+      Name: CaseAutoCloseBatchEvent
+      ScheduleExpression: "rate(24 hours)"
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt CaseAutoCloseLambda.Arn
+          Id: CaseAutoCloseBatchEventTarget
+  CaseAutoCloseLambdaPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - CaseAutoCloseBatchEvent
+    Properties:
+      FunctionName: !GetAtt CaseAutoCloseLambda.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt CaseAutoCloseBatchEvent.Arn
+  CaseAutoCloseLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-${AWS::AccountId}-CaseAutoCloseLambda'
+      Handler: batch/index.handler
+      CodeUri: 
+        Bucket: !Ref SolutionSourceBucket
+        Key: amazon-connect-cases-auto-close.zip
+      Description: CaseAutoCloseLambda
+      Role: !GetAtt lambdaRole.Arn
+
+#######################
+# Dynamodb Table 
+#######################
+  CasesTable:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - AttributeName: caseId
+          AttributeType: S
+      KeySchema: 
+        - AttributeName: caseId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      TableName: Cases
+

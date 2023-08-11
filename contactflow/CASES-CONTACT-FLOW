@@ -1,0 +1,144 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "fb85fe97-894c-4c9f-947f-58c3e5fece50",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": 40,
+      "y": 40
+    },
+    "ActionMetadata": {
+      "fb85fe97-894c-4c9f-947f-58c3e5fece50": {
+        "position": {
+          "x": 86.4,
+          "y": 150.4
+        }
+      },
+      "e90e46de-ccfc-4a94-a5fe-14557ce20ff7": {
+        "position": {
+          "x": 98.4,
+          "y": 322.40000000000003
+        }
+      },
+      "3aa9445e-3bc3-4a57-8ba8-3b8d7b865466": {
+        "position": {
+          "x": 1055.2,
+          "y": 280
+        }
+      },
+      "584499ec-af09-45f6-9a9a-ccbce4a756ca": {
+        "position": {
+          "x": 799.2,
+          "y": 280.8
+        }
+      },
+      "6b3d874d-b42e-4cbe-82ff-5ddb600763be": {
+        "position": {
+          "x": 544,
+          "y": 281.6
+        },
+        "parameters": {
+          "QueueId": {
+            "displayName": "BasicQueue"
+          }
+        },
+        "queue": {
+          "text": "BasicQueue"
+        }
+      },
+      "b67249c3-5d66-4f51-831e-e8a1febd3269": {
+        "position": {
+          "x": 321.6,
+          "y": 288.8
+        }
+      }
+    },
+    "name": "CASES",
+    "description": "",
+    "type": "contactFlow",
+    "status": "published",
+    "hash": {}
+  },
+  "Actions": [
+    {
+      "Parameters": {
+        "FlowLoggingBehavior": "Enabled"
+      },
+      "Identifier": "fb85fe97-894c-4c9f-947f-58c3e5fece50",
+      "Type": "UpdateFlowLoggingBehavior",
+      "Transitions": {
+        "NextAction": "e90e46de-ccfc-4a94-a5fe-14557ce20ff7"
+      }
+    },
+    {
+      "Parameters": {
+        "RecordingBehavior": {
+          "RecordedParticipants": [
+            "Agent",
+            "Customer"
+          ]
+        }
+      },
+      "Identifier": "e90e46de-ccfc-4a94-a5fe-14557ce20ff7",
+      "Type": "UpdateContactRecordingBehavior",
+      "Transitions": {
+        "NextAction": "b67249c3-5d66-4f51-831e-e8a1febd3269"
+      }
+    },
+    {
+      "Parameters": {},
+      "Identifier": "3aa9445e-3bc3-4a57-8ba8-3b8d7b865466",
+      "Type": "DisconnectParticipant",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {},
+      "Identifier": "584499ec-af09-45f6-9a9a-ccbce4a756ca",
+      "Type": "TransferContactToQueue",
+      "Transitions": {
+        "NextAction": "3aa9445e-3bc3-4a57-8ba8-3b8d7b865466",
+        "Errors": [
+          {
+            "NextAction": "3aa9445e-3bc3-4a57-8ba8-3b8d7b865466",
+            "ErrorType": "QueueAtCapacity"
+          },
+          {
+            "NextAction": "3aa9445e-3bc3-4a57-8ba8-3b8d7b865466",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "QueueId": "arn:aws:connect:us-east-1:XXXXXXXXXXXX:instance/XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX/queue/abdfa6ef-68f9-4d13-867d-e0c603e17282"
+      },
+      "Identifier": "6b3d874d-b42e-4cbe-82ff-5ddb600763be",
+      "Type": "UpdateContactTargetQueue",
+      "Transitions": {
+        "NextAction": "584499ec-af09-45f6-9a9a-ccbce4a756ca",
+        "Errors": [
+          {
+            "NextAction": "584499ec-af09-45f6-9a9a-ccbce4a756ca",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Text": "Hi, welcome to cases"
+      },
+      "Identifier": "b67249c3-5d66-4f51-831e-e8a1febd3269",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "6b3d874d-b42e-4cbe-82ff-5ddb600763be",
+        "Errors": [
+          {
+            "NextAction": "6b3d874d-b42e-4cbe-82ff-5ddb600763be",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    }
+  ]
+}
