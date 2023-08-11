@@ -35,7 +35,7 @@ In the above architecture, when an Amazon Connect Case is created, it fires a Ca
 ## Validate
 1.	Create or update your cases using by placing test call or using the Agent workspace
 2.	You will see the cases event in the Amazon DynamoDB table
-3.	After a X day (Step 6.1 in the walkthrough) the Amazon Connect cases status will be updated as closed and makerd as close in the DynamoDB table for tracking. 
+3.	After a X day (Step 5.1 in the walkthrough) the Amazon Connect cases status will be updated as closed and makerd as close in the DynamoDB table for tracking. 
 
 ## Conclusion
 In this guide, you learned how to stream Amazon Connect Cases to store the Case records in the Amazon DynamoDB table and auto update the Case status to close after the pre-defined configurable days.
